@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.0.1] - 2021-07-16
 ### Added
-- Initialized Value-at-Risk package.
-- Add the main VaR class.
-- Add different models to calculate the VaR.
+- Add greeks
+- Add implied volatility estimation
+- Add functions to calculate the option premium.
+- Add functions to calculate the expected value, variance, std and the expected movement of the underlying.
+- Add utility functions.
+- Add a class to deal with multiple options.
+- Add functions to simulate the return of the underlying.
