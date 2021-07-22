@@ -15,6 +15,7 @@ from optionpy.auxiliary import *
 from optionpy.greeks import *
 from optionpy.iv import *
 from optionpy.price import *
+from optionpy.sim import *
 
 __all__ = ["Option"]
 
@@ -54,7 +55,7 @@ class Option(object):
             volatility.
         start, end : str
             Start and end date of format "YYY-MM-DD".
-        df : pd.DataFrame
+        data : pd.DataFrame
             A dataframe with all available information:
                 * Kind : 1 for call option and -1 for put option.
                 * Start, End : Start and end date of format "YYY-MM-DD".
@@ -65,14 +66,16 @@ class Option(object):
                 * Volatility : Annual volatility of the underlying equity.
                 * Dividend : Dividend rate.
                 * Fair Value : Fair value calculated with the BSM model and the volatility of the underlying (`sigma`)
-                * Premium :  : Premium calculated with the BSM model and the implied volatility of the underlying (`iv`)
-                * Impl. Volatility : Implied volatility
+                * Premium : Premium calculated with the BSM model and the implied volatility of the underlying (`iv`)
+                * ITM : A bool that indicates if the option in In The Money.
+                * IV : Implied volatility
                 * Delta, Vega, Theta, Rho, Epsilon, Gamma : The greeks.
                 * Nd1, Nd2 : The probability of the event that the underlying price is over the strike price ($S_t≥K$) in the
                   risk-neutral world.
     """
 
-    def __init__(self, kind, s0, k, r, sigma, q=0.0, t=None, iv=None, premium=0.0, start="", end=""):
+    def __init__(self, kind, s0, k, r, sigma, q=0.0, t=None, iv=None, premium=0.0, start="", end="",
+                 **kwargs):
         """
         Initialize one or multiple options.
 
@@ -102,65 +105,145 @@ class Option(object):
         -----
         It is mandatory to define the parameter `end` or `t`.
         """
-        if end == "" and t is None:
-            raise AssertionError
+        data = kwargs.pop("data", None)
 
-        iv = sigma if iv is None else iv
-        t = 0 if t is None else t
+        if data is None:
+            if end == "" and t is None:
+                raise AssertionError
 
-        self.kind, self.s0, self.k, self.r, self.sigma, self.q, t, self.__iv, self.__premium = align_all((kind, s0, k, r,
-                                                                                                          sigma, q, t, iv,
-                                                                                                          premium))
-        _, start, end = align_all((t, start, end), dtype=str)
+            iv = sigma if iv in [None, 0] else iv
+            t = 0 if t is None else t
 
-        start[start == ""] = np.datetime64('today', 'D')
-        self.start = start.astype("datetime64[D]")
+            self.kind, self.s0, self.k, self.r, self.sigma, self.q, t, self.__iv, self.__premium = align_all((kind, s0, k, r,
+                                                                                                              sigma, q, t, iv,
+                                                                                                              premium))
+            _, start, end = align_all((t, start, end), dtype=str)
 
-        end[end == ""] = self.start[end == ""] + t.astype('timedelta64[D]')
-        self.end = end.astype("datetime64[D]")
+            start[start == ""] = np.datetime64('today', 'D')
+            self.start = start.astype("datetime64[D]")
 
-        self.t = (self.end - self.start).astype(int) / 365
+            if self.start[end == ""].shape[0] != 0:
+                end[end == ""] = self.start[end == ""] + t.astype('timedelta64[D]')
+            self.end = end.astype("datetime64[D]")
 
-        self.df = pd.DataFrame(columns=["Kind", "Start", "End", "Maturity", "S0", "Strike", "RFR", "Volatility", "Dividend",
-                                        "Fair Value", "Premium", "Impl. Volatility", "Delta", "Vega", "Theta", "Rho",
-                                        "Epsilon", "Gamma", "Nd1", "Nd2"])
+            self.t = (self.end - self.start).astype(int) / 365
 
-        self.__premium = premium
-        self.__iv = iv
+            puts = np.where(self.kind == -1)[0]
+            calls = np.where(self.kind == 1)[0]
 
-        self.df["Kind"] = self.kind
-        self.df["Start"] = self.start
-        self.df["End"] = self.end
-        self.df["Maturity"] = self.t
-        self.df["S0"] = self.s0
-        self.df["Strike"] = self.k
-        self.df["RFR"] = self.r
-        self.df["Volatility"] = self.sigma
-        self.df["Impl. Volatility"] = iv
-        self.df["Dividend"] = self.q
+            itm = np.zeros_like(self.s0, dtype=bool)
 
-        self.df["Premium"] = premium
+            itm[puts] = self.s0[puts] <= self.k[puts]
+            itm[calls] = self.s0[calls] >= self.k[calls]
 
-        self.compute_greeks()
-        self.compute_fair_value()
+            self.__data = pd.DataFrame(
+                columns=["Kind", "Start", "End", "Maturity", "S0", "Strike", "RFR", "Volatility", "Dividend",
+                         "Fair Value", "Premium", "ITM", "IV", "Delta", "Vega", "Theta", "Rho",
+                         "Epsilon", "Gamma", "Nd1", "Nd2"])
 
-        if not np.all(self.premium == 0.0):
-            self.compute_iv()
+            self.__premium = premium
+            self.__iv = iv
 
-        _, _ = self.nd1, self.nd2
+            self.__data["Kind"] = self.kind
+            self.__data["Start"] = self.start
+            self.__data["End"] = self.end
+            self.__data["Maturity"] = self.t
+            self.__data["S0"] = self.s0
+            self.__data["Strike"] = self.k
+            self.__data["RFR"] = self.r
+            self.__data["Volatility"] = self.sigma
+            self.__data["IV"] = iv
+            self.__data["Dividend"] = self.q
+            self.__data["Premium"] = premium
+
+            self.__data["ITM"] = itm
+
+            self.compute_greeks()
+            self.compute_fair_value()
+
+            if not np.all(self.premium == 0.0) and np.all(self.iv == self.sigma):
+                self.compute_iv()
+
+            _, _ = self.nd1, self.nd2
+        else:
+            self.__data = data
+
+            self.kind = data["Kind"]
+            self.start = data["Start"].values
+            self.end = data["End"].values
+            self.t = data["Maturity"].values
+            self.__premium = data["Premium"].values
+            self.__iv = data["IV"].values
 
     # ----------------------------------------------------------------------------------------------
     # Magic Methods
     # ----------------------------------------------------------------------------------------------
     def __repr__(self):
-        header = "<{amount} Options ({call} Call, {put} Put)>".format(amount=len(self.kind), call=len(self.df["Kind"] == 1),
-                                                                      put=len(self.df["Kind"] == -1))
+        return str(self.data)
 
-        return header
+    def __str__(self):
+        return str(self.data)
+
+    def __len__(self):
+        return len(self.data)
+
+    def __iter__(self):
+        for i in range(len(self.data)):
+            yield self.data.iloc[0]
+
+    def __getitem__(self, item):
+        return self.data[item]
 
     # ----------------------------------------------------------------------------------------------
     # Properties
     # ----------------------------------------------------------------------------------------------
+    @property
+    def data(self):
+        """
+        A dataframe with all available information:
+            * Kind : 1 for call option and -1 for put option.
+            * Start, End : Start and end date of format "YYY-MM-DD".
+            * Maturity : Time till maturity in days.
+            * S0 : Initial equity Price
+            * Strike : Strike Price
+            * RFR : Risk Free Rate
+            * Volatility : Annual volatility of the underlying equity.
+            * Dividend : Dividend rate.
+            * Fair Value : Fair value calculated with the BSM model and the volatility of the underlying (`sigma`)
+            * Premium :  : Premium calculated with the BSM model and the implied volatility of the underlying (`iv`)
+            * IV : Implied volatility
+            * Delta, Vega, Theta, Rho, Epsilon, Gamma : The greeks.
+            * Nd1, Nd2 : The probability of the event that the underlying price is over the strike price ($S_t≥K$) in the
+              risk-neutral world.
+
+        Returns
+        -------
+        pd.DataFrame
+        """
+        return self.__data
+
+    @property
+    def iloc(self):
+        """
+        Purely integer-location based indexing for selection by position. This is a wrapper function of `pd.DataFrame.iloc`
+
+        Returns
+        -------
+        pd.DataFrame
+        """
+        return self.data.iloc
+
+    @property
+    def loc(self):
+        """
+        Purely label-location based indexer for selection by label. This is a wrapper function of `pd.DataFrame.loc`
+
+        Returns
+        -------
+        pd.DataFrame
+        """
+        return self.data.loc
+
     @property
     def nd1(self):
         """
@@ -171,7 +254,7 @@ class Option(object):
         float, array_like
         """
         nd1 = compute_nd1(self.kind, self.s0, self.iv, self.k, self.r, self.t, self.q)
-        self.df["Nd1"] = nd1
+        self.data["Nd1"] = nd1
         return nd1
 
     @property
@@ -185,7 +268,7 @@ class Option(object):
         float, array_like
         """
         nd2 = compute_nd2(self.kind, self.s0, self.iv, self.k, self.r, self.t, self.q)
-        self.df["Nd2"] = nd2
+        self.data["Nd2"] = nd2
         return nd2
 
     @property
@@ -197,7 +280,7 @@ class Option(object):
         -------
         float, array_like
         """
-        return self.df["Impl. Volatility"].values
+        return self.data["IV"].values
 
     @iv.setter
     def iv(self, item):
@@ -218,7 +301,7 @@ class Option(object):
         This function update the greeks and the premium calculation.
         """
         _, item = align_all((self.__iv, item))
-        self.df["Impl. Volatility"] = item
+        self.data["IV"] = item
         self.__update()
 
     @property
@@ -230,7 +313,7 @@ class Option(object):
         -------
         float, array_like
         """
-        return self.df["Premium"].values
+        return self.data["Premium"].values
 
     @premium.setter
     def premium(self, value):
@@ -252,12 +335,54 @@ class Option(object):
         This function update the greeks and the premium calculation.
         """
         _, value = align_all((self.iv, value))
-        self.df["Premium"] = value
+        self.data["Premium"] = value
         self.__update()
 
     # ----------------------------------------------------------------------------------------------
     # Public Methods
     # ----------------------------------------------------------------------------------------------
+    def select_where(self, column, start, stop=None):
+        """
+        A query function that make should make the `DataFrame` queries easier.
+
+        Parameters
+        ----------
+        column : str
+            The name of the column where the query is pointed to. Possible columns are:
+               * 'Kind', 'Start', 'End', 'Maturity', 'S0', 'Strike', 'RFR', 'Volatility', 'Dividend', 'Fair Value', 'Premium',
+               'IV', 'Delta', 'Vega', 'Theta', 'Rho', 'Epsilon', 'Gamma', 'Nd1', 'Nd2'.
+        start : str
+            The start value and its operation (see Notes).
+        stop : str or None
+            The end value and its operation (see Notes).
+
+        Returns
+        -------
+        Option
+
+        Notes
+        -----
+        For example, of you want to select all the Delta that is between 0.30 and 0.50 you use this function like:
+            >>> self.select_where("Delta", ">=0.30", "<=0.50")
+
+        """
+        if column in self.data.columns:
+            if stop is None:
+                run = "self.data[self.data[column] {0}]".format(start)
+
+            else:
+                run = "self.data[(self.data[column] {0}) & " \
+                      "(self.data[column] {1})]".format(start, stop)
+
+            df = eval(run)
+
+            return Option(kind=df["Kind"].values,
+                          s0=df["S0"].values,
+                          r=df["RFR"].values,
+                          sigma=df["Volatility"].values,
+                          k=df["Strike"].values,
+                          data=df)
+
     def compute_premium(self, method="BSM", iteration=100000, update=True):
         """
         Calculate the current value of the option. The current value will use the implied volatility of the underlying.
@@ -271,7 +396,7 @@ class Option(object):
         iteration : int, optional
             Amount of iteration. Only relevant for MC. Default is 100000
         update : bool
-            If True (default) the dataframe (self.df) will be updated.
+            If True (default) the dataframe (self.data) will be updated.
 
         Returns
         -------
@@ -280,7 +405,7 @@ class Option(object):
         premium = self.__compute_premium(iv=self.iv, method=method, iteration=iteration)
 
         if update:
-            self.df["Premium"] = premium
+            self.data["Premium"] = premium
 
         return premium
 
@@ -297,7 +422,7 @@ class Option(object):
         iteration : int, optional
             Amount of iteration. Only relevant for MC. Default is 100000
         update : bool
-            If True (default) the dataframe (self.df) will be updated.
+            If True (default) the dataframe (self.data) will be updated.
 
         Returns
         -------
@@ -306,7 +431,7 @@ class Option(object):
         premium = self.__compute_premium(iv=self.sigma, method=method, iteration=iteration)
 
         if update:
-            self.df["Fair Value"] = premium
+            self.data["Fair Value"] = premium
 
         return premium
 
@@ -317,19 +442,19 @@ class Option(object):
         Parameters
         ----------
         update : bool
-            If True (default) the dataframe (self.df) will be updated.
+            If True (default) the dataframe (self.data) will be updated.
 
         Returns
         -------
         float, array_like
         """
-        if np.all(self.df["Premium"].values == 0.0):
+        if np.all(self.data["Premium"].values == 0.0):
             raise ValueError("To compute the implied volatility, parameter `premium` must be set.")
 
-        iv = compute_iv(self.kind, self.s0, self.sigma, self.k, self.r, self.t, self.q, self.df["Premium"].values)
+        iv = compute_iv(self.kind, self.s0, self.sigma, self.k, self.r, self.t, self.q, self.data["Premium"].values)
 
         if update:
-            self.df["Impl. Volatility"] = iv
+            self.data["IV"] = iv
 
         return iv
 
@@ -342,13 +467,13 @@ class Option(object):
         Parameters
         ----------
         update : bool
-            If True (default) the dataframe (self.df) will be updated.
+            If True (default) the dataframe (self.data) will be updated.
 
         Returns
         -------
         float, array_like
         """
-        iv = self.df["Impl. Volatility"].values
+        iv = self.data["IV"].values
 
         delta = compute_delta(self.kind, self.s0, iv, self.k, self.r, self.t, self.q)
         vega = compute_vega(self.s0, iv, self.k, self.r, self.t, self.q)
@@ -358,12 +483,12 @@ class Option(object):
         gamma = compute_gamma(self.s0, iv, self.k, self.r, self.t, self.q)
 
         if update:
-            self.df["Delta"] = delta
-            self.df["Vega"] = vega
-            self.df["Theta"] = theta
-            self.df["Rho"] = rho
-            self.df["Epsilon"] = epsilon
-            self.df["Gamma"] = gamma
+            self.data["Delta"] = delta
+            self.data["Vega"] = vega
+            self.data["Theta"] = theta
+            self.data["Rho"] = rho
+            self.data["Epsilon"] = epsilon
+            self.data["Gamma"] = gamma
 
         result = dict()
         result["Delta"] = delta
