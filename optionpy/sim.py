@@ -73,7 +73,8 @@ def generate_terminal_values(s0, sigma, r, t, q=0.0, iteration=1000, n=365):
     pd.DataFrame
     """
 
-    values = list()
+    values = np.zeros(n)
+
     for i in range(n):
         sim_st = np.zeros(iteration)
         sim_st[0] = s0
