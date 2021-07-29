@@ -26,6 +26,29 @@
 </p>
 </div>
 
-
 # Introduction
-The option-price package makes pricing thousands of option contracts and calculating the Greeks fast and effortless.
+
+The `optionpy` package makes pricing of option contracts and calculating the *Greeks* fast.
+
+# Key Features
+
+Calculate the quantities
+
+* Kind : 1 for call option and -1 for put option.
+* Start, End : Start and end date of format "YYY-MM-DD".
+* Maturity : Time till maturity in days.
+* S0 : Initial equity Price
+* Strike : Strike Price
+* RFR : Risk Free Rate
+* Volatility : Annual volatility of the underlying equity.
+* Dividend : Dividend rate.
+* Fair Value : Fair value calculated with the BSM model and the volatility of the underlying (`sigma`)
+* Premium : Premium calculated with the BSM model and the implied volatility of the underlying (`iv`)
+* ITM : A bool that indicates if the option in In The Money.
+* IV : Implied volatility
+* Delta, Vega, Theta, Rho, Epsilon, Gamma : The greeks.
+* Nd1, Nd2 : The probability of the event that the underlying price is over the strike price ($S_t≥K$) in the risk-neutral world.
+
+and display it as a `DataFrame` object.
+
+# Examples
