@@ -22,7 +22,6 @@
   <a href="#key-features">Key Features</a> •
   <a href="#examples">Examples</a> •
   <a href="#installation">Installation</a> •
-  <a href="#dependencies">Dependencies</a> •
 </p>
 </div>
 
@@ -128,3 +127,21 @@ Select where the Delta is greater than 0.3 and smaller than 0.35:
 ````python
 option.select_where("Delta", ">=0.30", "<=0.35")
 ````
+
+
+# Installation
+
+There are currently different methods to install `optionpy`.
+
+### Using pip
+
+The ` var ` package is provided on pip. You can install it with::
+
+    pip install optionpy
+
+### Standard Python
+
+You can also download the source code package from this repository or from pip. Unpack the file you obtained into some directory (
+it can be a temporary directory) and then run::
+
+    python setup.py install
