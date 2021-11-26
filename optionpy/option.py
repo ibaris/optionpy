@@ -328,34 +328,35 @@ class Option(object):
         nd_list = list()
 
         try:
-            tmp_put = self.select_where("Kind", "==-1")
+            # tmp_put = self.select_where("Kind", "==-1")
+            tmp_put = self.data[self.data["Kind"] == -1]
 
-            nd1_put = compute_nd1(tmp_put.data["Kind"].values,
-                                  tmp_put.data["S0"].values,
-                                  tmp_put.data["IV"].values,
-                                  tmp_put["Strike"] - tmp_put.data["Premium"].values,
-                                  tmp_put["RFR"],
+            nd1_put = compute_nd1(tmp_put["Kind"].values,
+                                  tmp_put["S0"].values,
+                                  tmp_put["IV"].values,
+                                  tmp_put["Strike"] - tmp_put["Premium"].values,
+                                  tmp_put["RFR"].values,
                                   tmp_put["Maturity"].values,
                                   tmp_put["Dividend"].values)
 
-            nd1_put = nd1_put.values.tolist()
+            nd1_put = nd1_put.tolist()
             nd_list.extend(nd1_put)
 
         except ValueError:
             pass
 
         try:
-            tmp_call = self.select_where("Kind", "==1")
+            tmp_call = self.data[self.data["Kind"] == 1]
 
-            nd1_call = compute_nd1(tmp_call.data["Kind"].values,
-                                   tmp_call.data["S0"].values,
-                                   tmp_call.data["IV"].values,
-                                   tmp_call["Strike"] + tmp_call.data["Premium"].values,
-                                   tmp_call["RFR"],
+            nd1_call = compute_nd1(tmp_call["Kind"].values,
+                                   tmp_call["S0"].values,
+                                   tmp_call["IV"].values,
+                                   tmp_call["Strike"].values + tmp_call["Premium"].values,
+                                   tmp_call["RFR"].values,
                                    tmp_call["Maturity"].values,
                                    tmp_call["Dividend"].values)
 
-            nd1_call = nd1_call.values.tolist()
+            nd1_call = nd1_call.tolist()
             nd_list.extend(nd1_call)
 
         except ValueError:
@@ -393,34 +394,34 @@ class Option(object):
         nd_list = list()
 
         try:
-            tmp_put = self.select_where("Kind", "==-1")
+            tmp_put = self.data[self.data["Kind"] == -1]
 
-            nd2_put = compute_nd2(kind=tmp_put.data["Kind"].values,
-                                  s0=tmp_put.data["S0"].values,
-                                  sigma=tmp_put.data["IV"].values,
-                                  k=tmp_put["Strike"].values - tmp_put.data["Premium"].values,
-                                  r=tmp_put["RFR"],
+            nd2_put = compute_nd2(kind=tmp_put["Kind"].values,
+                                  s0=tmp_put["S0"].values,
+                                  sigma=tmp_put["IV"].values,
+                                  k=tmp_put["Strike"].values - tmp_put["Premium"].values,
+                                  r=tmp_put["RFR"].values,
                                   t=tmp_put["Maturity"].values,
                                   q=tmp_put["Dividend"].values)
 
-            nd2_put = nd2_put.values.tolist()
+            nd2_put = nd2_put.tolist()
             nd_list.extend(nd2_put)
 
         except ValueError:
             pass
 
         try:
-            tmp_call = self.select_where("Kind", "==1")
+            tmp_call = self.data[self.data["Kind"] == 1]
 
-            nd2_call = compute_nd2(kind=tmp_call.data["Kind"].values,
-                                   s0=tmp_call.data["S0"].values,
-                                   sigma=tmp_call.data["IV"].values,
-                                   k=tmp_call["Strike"] + tmp_call.data["Premium"].values,
-                                   r=tmp_call["RFR"],
+            nd2_call = compute_nd2(kind=tmp_call["Kind"].values,
+                                   s0=tmp_call["S0"].values,
+                                   sigma=tmp_call["IV"].values,
+                                   k=tmp_call["Strike"].values + tmp_call["Premium"].values,
+                                   r=tmp_call["RFR"].values,
                                    t=tmp_call["Maturity"].values,
                                    q=tmp_call["Dividend"].values)
 
-            nd2_call = nd2_call.values.tolist()
+            nd2_call = nd2_call.tolist()
             nd_list.extend(nd2_call)
 
         except ValueError:
