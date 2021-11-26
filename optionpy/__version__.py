@@ -26,7 +26,6 @@ if os.path.exists(version_path):
         version_file = vfile.read()
         __version__ = version_file.split("\n")[-2].split(";")[-1]
 
-
 else:
     print("SemPy version file not found.")
     print(filepath)
