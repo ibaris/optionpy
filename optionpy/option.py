@@ -234,10 +234,13 @@ class Option(object):
                 self.compute_iv()
 
             _, _ = self.nd1, self.nd2
+            _, _ = self.end1, self.end2
+
         else:
             self.__data = data
 
-            self.kind = data["Kind"]
+            self.kind = data["Kind"].values
+            self.s0 = data["S0"].values
             self.start = data["Start"].values
             self.end = data["End"].values
             self.t = data["Maturity"].values
@@ -314,6 +317,57 @@ class Option(object):
         return self.data.loc
 
     @property
+    def end1(self):
+        """
+        The effective Delta, which is the probability of the option being at the Strike + Premium under the stock measure
+
+        Returns
+        -------
+        float, array_like
+        """
+        nd_list = list()
+
+        try:
+            tmp_put = self.select_where("Kind", "==-1")
+
+            nd1_put = compute_nd1(tmp_put.data["Kind"].values,
+                                  tmp_put.data["S0"].values,
+                                  tmp_put.data["IV"].values,
+                                  tmp_put["Strike"] - tmp_put.data["Premium"].values,
+                                  tmp_put["RFR"],
+                                  tmp_put["Maturity"].values,
+                                  tmp_put["Dividend"].values)
+
+            nd1_put = nd1_put.values.tolist()
+            nd_list.extend(nd1_put)
+
+        except ValueError:
+            pass
+
+        try:
+            tmp_call = self.select_where("Kind", "==1")
+
+            nd1_call = compute_nd1(tmp_call.data["Kind"].values,
+                                   tmp_call.data["S0"].values,
+                                   tmp_call.data["IV"].values,
+                                   tmp_call["Strike"] + tmp_call.data["Premium"].values,
+                                   tmp_call["RFR"],
+                                   tmp_call["Maturity"].values,
+                                   tmp_call["Dividend"].values)
+
+            nd1_call = nd1_call.values.tolist()
+            nd_list.extend(nd1_call)
+
+        except ValueError:
+            pass
+
+        end1 = np.atleast_1d(nd_list)
+
+        self.data["ENd1"] = end1
+
+        return end1
+
+    @property
     def nd1(self):
         """
         Delta is the probability of the option being ITM under the stock measure
@@ -325,6 +379,58 @@ class Option(object):
         nd1 = compute_nd1(self.kind, self.s0, self.iv, self.k, self.r, self.t, self.q)
         self.data["Nd1"] = nd1
         return nd1
+
+    @property
+    def end2(self):
+        """
+        The effective probability of the event that the underlying price is over the strike price ($S_t≥K + Premium$) in the
+        risk-neutral world.
+
+        Returns
+        -------
+        float, array_like
+        """
+        nd_list = list()
+
+        try:
+            tmp_put = self.select_where("Kind", "==-1")
+
+            nd2_put = compute_nd2(kind=tmp_put.data["Kind"].values,
+                                  s0=tmp_put.data["S0"].values,
+                                  sigma=tmp_put.data["IV"].values,
+                                  k=tmp_put["Strike"].values - tmp_put.data["Premium"].values,
+                                  r=tmp_put["RFR"],
+                                  t=tmp_put["Maturity"].values,
+                                  q=tmp_put["Dividend"].values)
+
+            nd2_put = nd2_put.values.tolist()
+            nd_list.extend(nd2_put)
+
+        except ValueError:
+            pass
+
+        try:
+            tmp_call = self.select_where("Kind", "==1")
+
+            nd2_call = compute_nd2(kind=tmp_call.data["Kind"].values,
+                                   s0=tmp_call.data["S0"].values,
+                                   sigma=tmp_call.data["IV"].values,
+                                   k=tmp_call["Strike"] + tmp_call.data["Premium"].values,
+                                   r=tmp_call["RFR"],
+                                   t=tmp_call["Maturity"].values,
+                                   q=tmp_call["Dividend"].values)
+
+            nd2_call = nd2_call.values.tolist()
+            nd_list.extend(nd2_call)
+
+        except ValueError:
+            pass
+
+        end2 = np.atleast_1d(nd_list)
+
+        self.data["ENd2"] = end2
+
+        return end2
 
     @property
     def nd2(self):
