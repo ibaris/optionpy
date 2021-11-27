@@ -39,8 +39,8 @@ class Option(object):
             1 for call option and -1 for put option.
         s0 : int, float, array_like
             Initial equity Price
-        k : int, float, array_like
-            Strike Price
+        k, ek : int, float, array_like
+            Strike Price, Effective Strike Price (Strike +- Premium, - for put and + for call).
         sigma : int, float, array_like
             Annual volatility of the underlying equity.
         q : int, float, array_like
@@ -61,6 +61,7 @@ class Option(object):
                 * Maturity : Time till maturity in days.
                 * S0 : Initial equity Price
                 * Strike : Strike Price
+                * EFS : Effective Strike Price. This means for a put/call option: Strike -+ Premium.
                 * RFR : Risk Free Rate
                 * Volatility : Annual volatility of the underlying equity.
                 * Dividend : Dividend rate.
@@ -156,6 +157,8 @@ class Option(object):
             Initial equity Price
         k : int, float, array_like
             Strike Price
+        r : int, float, array_like
+            Risk free rate.
         sigma : int, float, array_like
             Annual volatility of the underlying equity.
         q : int, float, array_like
@@ -224,7 +227,6 @@ class Option(object):
             self.__data["IV"] = iv
             self.__data["Dividend"] = self.q
             self.__data["Premium"] = premium
-
             self.__data["ITM"] = itm
 
             self.compute_greeks()
@@ -233,14 +235,25 @@ class Option(object):
             if not np.all(self.premium == 0.0) and np.all(self.iv == self.sigma):
                 self.compute_iv()
 
+            self.__data["EFS"] = 0
+            put_df = self.__data[self.__data["Kind"] == -1]
+            put_df["EFS"] = put_df["Strike"] - put_df["Premium"]
+            call_df = self.__data[self.__data["Kind"] == 1]
+            call_df["EFS"] = call_df["Strike"] + call_df["Premium"]
+
+            self.__data.loc[self.__data['Kind'] == -1, 'EFS'] = put_df["EFS"]
+            self.__data.loc[self.__data['Kind'] == 1, 'EFS'] = call_df["EFS"]
+
+            self.ek = self.__data["EFS"].values
+
             _, _ = self.nd1, self.nd2
             _, _ = self.end1, self.end2
 
         else:
             self.__data = data
-
             self.kind = data["Kind"].values
             self.s0 = data["S0"].values
+            self.ek = self.__data["EFS"].values
             self.start = data["Start"].values
             self.end = data["End"].values
             self.t = data["Maturity"].values
@@ -278,6 +291,7 @@ class Option(object):
             * Maturity : Time till maturity in days.
             * S0 : Initial equity Price
             * Strike : Strike Price
+            * EFS : Effective Strike Price. This means for a put/call option: Strike -+ Premium.
             * RFR : Risk Free Rate
             * Volatility : Annual volatility of the underlying equity.
             * Dividend : Dividend rate.
@@ -319,54 +333,15 @@ class Option(object):
     @property
     def end1(self):
         """
-        The effective Delta, which is the probability of the option being at the Strike + Premium under the stock measure
+        The effective Delta, which is the probability of the option being at the Strike +- Premium under the stock measure.
 
         Returns
         -------
         float, array_like
         """
-        nd_list = list()
-
-        try:
-            # tmp_put = self.select_where("Kind", "==-1")
-            tmp_put = self.data[self.data["Kind"] == -1]
-
-            nd1_put = compute_nd1(tmp_put["Kind"].values,
-                                  tmp_put["S0"].values,
-                                  tmp_put["IV"].values,
-                                  tmp_put["Strike"] - tmp_put["Premium"].values,
-                                  tmp_put["RFR"].values,
-                                  tmp_put["Maturity"].values,
-                                  tmp_put["Dividend"].values)
-
-            nd1_put = nd1_put.tolist()
-            nd_list.extend(nd1_put)
-
-        except ValueError:
-            pass
-
-        try:
-            tmp_call = self.data[self.data["Kind"] == 1]
-
-            nd1_call = compute_nd1(tmp_call["Kind"].values,
-                                   tmp_call["S0"].values,
-                                   tmp_call["IV"].values,
-                                   tmp_call["Strike"].values + tmp_call["Premium"].values,
-                                   tmp_call["RFR"].values,
-                                   tmp_call["Maturity"].values,
-                                   tmp_call["Dividend"].values)
-
-            nd1_call = nd1_call.tolist()
-            nd_list.extend(nd1_call)
-
-        except ValueError:
-            pass
-
-        end1 = np.atleast_1d(nd_list)
-
-        self.data["ENd1"] = end1
-
-        return end1
+        nd1 = compute_nd1(self.kind, self.s0, self.iv, self.ek, self.r, self.t, self.q)
+        self.data["ENd1"] = nd1
+        return nd1
 
     @property
     def nd1(self):
@@ -384,54 +359,16 @@ class Option(object):
     @property
     def end2(self):
         """
-        The effective probability of the event that the underlying price is over the strike price ($S_t≥K + Premium$) in the
+        The effective probability of the event that the underlying price is over the strike price ($S_t≥K +- Premium$) in the
         risk-neutral world.
 
         Returns
         -------
         float, array_like
         """
-        nd_list = list()
-
-        try:
-            tmp_put = self.data[self.data["Kind"] == -1]
-
-            nd2_put = compute_nd2(kind=tmp_put["Kind"].values,
-                                  s0=tmp_put["S0"].values,
-                                  sigma=tmp_put["IV"].values,
-                                  k=tmp_put["Strike"].values - tmp_put["Premium"].values,
-                                  r=tmp_put["RFR"].values,
-                                  t=tmp_put["Maturity"].values,
-                                  q=tmp_put["Dividend"].values)
-
-            nd2_put = nd2_put.tolist()
-            nd_list.extend(nd2_put)
-
-        except ValueError:
-            pass
-
-        try:
-            tmp_call = self.data[self.data["Kind"] == 1]
-
-            nd2_call = compute_nd2(kind=tmp_call["Kind"].values,
-                                   s0=tmp_call["S0"].values,
-                                   sigma=tmp_call["IV"].values,
-                                   k=tmp_call["Strike"].values + tmp_call["Premium"].values,
-                                   r=tmp_call["RFR"].values,
-                                   t=tmp_call["Maturity"].values,
-                                   q=tmp_call["Dividend"].values)
-
-            nd2_call = nd2_call.tolist()
-            nd_list.extend(nd2_call)
-
-        except ValueError:
-            pass
-
-        end2 = np.atleast_1d(nd_list)
-
-        self.data["ENd2"] = end2
-
-        return end2
+        nd2 = compute_nd2(self.kind, self.s0, self.iv, self.ek, self.r, self.t, self.q)
+        self.data["ENd2"] = nd2
+        return nd2
 
     @property
     def nd2(self):
