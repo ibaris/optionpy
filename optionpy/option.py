@@ -472,9 +472,8 @@ class Option(object):
         Parameters
         ----------
         column : str
-            The name of the column where the query is pointed to. Possible columns are:
-               * 'Kind', 'Start', 'End', 'Maturity', 'S0', 'Strike', 'RFR', 'Volatility', 'Dividend', 'Fair Value', 'Premium',
-               'IV', 'Delta', 'Vega', 'Theta', 'Rho', 'Epsilon', 'Gamma', 'Nd1', 'Nd2'.
+            The name of the column where the query is pointed to. Possible columns are stored in parameter
+            `columns`.
         start : str
             The start value and its operation (see Notes).
         stop : str or None
