@@ -38,7 +38,7 @@ def get_version():
     with open("optionpy/__version__.py") as fp:
         exec(fp.read(), version)
 
-    return version['__version__']
+    return version['__version__'].split("-")[0].split("+")[0]
 
 
 with open('requirements.txt') as f:
