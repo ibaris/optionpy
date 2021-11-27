@@ -418,6 +418,17 @@ class Option(object):
         self.__update()
 
     @property
+    def columns(self):
+        """
+        Show all columns.
+
+        Returns
+        -------
+        list
+        """
+        return self.data.columns
+
+    @property
     def premium(self):
         """
         Premium
