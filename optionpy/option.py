@@ -637,3 +637,20 @@ class Option(object):
             premium = compute_price_ms(self.kind, self.s0, iv, self.k, self.r, self.t, self.q, iteration)
 
         return premium
+
+    def to_excel(self, path, sheet_name=None):
+        """
+        Export the data to an excel sheet.
+
+        Parameters
+        ----------
+        path: str
+            Path to the excel file.
+        sheet_name: str or None
+            Sheet name.
+
+        Returns
+        -------
+        None
+        """
+        self.data.to_excel(path, sheet_name=sheet_name)
