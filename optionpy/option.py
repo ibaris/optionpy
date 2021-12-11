@@ -72,6 +72,8 @@ class Option(object):
                 * Delta, Vega, Theta, Rho, Epsilon, Gamma : The greeks.
                 * Nd1, Nd2 : The probability of the event that the underlying price is over the strike price ($S_t≥K$) in the
                   risk-neutral world.
+                * ENd1, ENd2 : The effective probability of the event that the underlying price is over the strike price
+                  ($S_t≥K +- Premium$) in the risk-neutral world.
 
     Examples
     --------
@@ -216,10 +218,13 @@ class Option(object):
             self.__premium = premium
             self.__iv = iv
 
+            self.maturity_days = (self.end - self.start) / np.timedelta64(1, 'D')
+
             self.__data["Kind"] = self.kind
             self.__data["Start"] = self.start
             self.__data["End"] = self.end
             self.__data["Maturity"] = self.t
+            self.__data["Maturity Days"] = self.maturity_days
             self.__data["S0"] = self.s0
             self.__data["Strike"] = self.k
             self.__data["RFR"] = self.r
@@ -257,6 +262,8 @@ class Option(object):
             self.start = data["Start"].values
             self.end = data["End"].values
             self.t = data["Maturity"].values
+            self.maturity_days = self.__data["Maturity Days"].values
+
             self.__premium = data["Premium"].values
             self.__iv = data["IV"].values
 
@@ -654,3 +661,20 @@ class Option(object):
         None
         """
         self.data.to_excel(path, sheet_name=sheet_name)
+
+    def filter(self, columns):
+        """
+        Subset the dataframe rows or columns according to the specified index labels.
+
+        Parameters
+        ----------
+        columns: list
+            A list with column names.
+
+        Returns
+        -------
+        pd.DataFrame
+        """
+        data = self.data.filter(columns)
+
+        return data
